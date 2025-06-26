@@ -1,0 +1,82 @@
+name: App pre-check
+
+concurrency:
+  cancel_in_progress: true
+  group: ${{ workflow.filename }}-${{ github.ref }} # placeholder
+
+on:
+  pull_request:
+    branches: ['branch_name']
+  push:
+    branches: ['branch_name']
+
+jobs:
+  setup:
+    name: Setup
+    outputs:
+      flow_path_android: ${{ steps.flow_path_android.outputs.flow_path_android }}
+      flow_path_ios: ${{ steps.flow_path_ios.outputs.flow_path_ios }}
+    steps:
+      - uses: eas/checkout
+      - name: Get flow_path property for iOS
+        id: flow_path_ios
+        env:
+          PLATFORM: ios
+        run: |
+          FLOW_PATH=$(node ./.maestro/getFlowPath.js)
+          set-output flow_path_ios $FLOW_PATH
+      - name: Get flow_path property for Android
+        id: flow_path_android
+        env:
+          PLATFORM: android
+        run: |
+          FLOW_PATH=$(node ./.maestro/getFlowPath.js)
+          set-output flow_path_android $FLOW_PATH
+
+  run_eslint:
+    name: Run ESLint
+    environment: preview
+    steps:
+      - uses: eas/checkout
+      - run: npm install
+      - run: npx eslint . --max-warnings=0
+
+  run_jest:
+    name: Run Jest
+    environment: preview
+    steps:
+      - uses: eas/checkout
+      - run: npm install
+      - run: npx jest
+
+  build_android_for_e2e:
+    type: build
+    name: Build Android for E2E
+    params:
+      platform: android
+      profile: e2e-test
+
+  build_ios_for_e2e:
+    type: build
+    name: Build iOS for E2E
+    params:
+      platform: ios
+      profile: e2e-test
+
+  maestro_test_android:
+    needs: [build_android_for_e2e, setup]
+    type: maestro
+    name: Maestro E2E Test (Android)
+    params:
+      build_id: ${{ needs.build_android_for_e2e.outputs.build_id }}
+      flow_path: ${{ fromJSON(needs.setup.outputs.flow_path_android) }}
+      retries: 3
+
+  maestro_test_ios:
+    needs: [build_ios_for_e2e, setup]
+    type: maestro
+    name: Maestro E2E Test (iOS)
+    params:
+      build_id: ${{ needs.build_ios_for_e2e.outputs.build_id }}
+      flow_path: ${{ fromJSON(needs.setup.outputs.flow_path_ios) }}
+      retries: 3

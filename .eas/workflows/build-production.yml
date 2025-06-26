@@ -1,0 +1,55 @@
+name: Release app (production)
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  setup:
+    outputs:
+      version: ${{ steps.app_version.outputs.version }}
+    steps:
+      - uses: eas/checkout
+      - run: git fetch --unshallow
+      - run: git config --global user.name "Expo Workflows"
+      - run: cd .build && npm install
+      - id: app_version
+        run: |
+          cd .build && APP_VERSION=$(node production-version.js)
+          set-output version "$APP_VERSION"
+      - run: git tag -a v${{ steps.app_version.outputs.version }} -m "Version ${{ steps.app_version.outputs.version }}" && git push origin tag v${{ steps.app_version.outputs.version }}
+
+  build_ios:
+    needs: [setup]
+    type: build
+    env:
+      APP_VERSION: ${{ needs.setup.outputs.version }}
+    params:
+      profile: production
+      platform: ios
+
+  build_android:
+    needs: [setup]
+    type: build
+    env:
+      APP_VERSION: ${{ needs.setup.outputs.version }}
+    params:
+      profile: production
+      platform: android
+
+  submit_ios:
+    name: Submit iOS Build
+    needs: [build_ios]
+    type: submit
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production
+
+  submit_android:
+    name: Submit Android Build
+    needs: [build_android]
+    type: submit
+    
+    params:
+      build_id: ${{ needs.build_android.outputs.build_id }}
+      profile: production
