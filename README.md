@@ -92,9 +92,3 @@ This repository contains GitHub Actions workflows for automating the CI/CD proce
 
 #### 📤 `submit_android`
 - Submits the Android build to the Play Console.
-
----
-
-## 🛠 Requirements
-
-- Node.js scripts (`staging-version.js`, `production-version.js`, `getFlowPath.j
